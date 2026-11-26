@@ -158,9 +158,28 @@
       'The link stays the same, so you only add it once.';
   }
 
+  // Red badge on the Dock icon (Safari "Add to Dock" app) + red dot in the title while live.
+  let badgeOn = null;
+  function paintBadge(live) {
+    if (live === badgeOn) return;
+    badgeOn = live;
+    document.title = live ? '🔴 Phone Cam (Live)' : 'Phone Cam';
+    try {
+      if (live && navigator.setAppBadge) navigator.setAppBadge().catch(() => {});
+      if (!live && navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+    } catch {}
+  }
+  // macOS only shows web-app badges once notifications are allowed; ask on first Start (needs a click).
+  function askBadgePermission() {
+    try {
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    } catch {}
+  }
+
   function paintState(s) {
     const prev = state;
     state = s.state;
+    paintBadge(state === 'live' || state === 'starting');
     const labels = { off: 'Off', starting: 'Starting…', live: 'Live', error: 'Error' };
     $('pill').className = 'pill ' + state;
     $('pillText').textContent = labels[state] || state;
@@ -212,6 +231,7 @@
   }));
 
   $('go').onclick = async () => {
+    if (state !== 'live') askBadgePermission();
     paintState(await api(state === 'live' ? '/api/stop' : '/api/start', state === 'live' ? {} : settings));
   };
 
