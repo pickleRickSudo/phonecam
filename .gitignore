@@ -1,0 +1,5 @@
+server.log
+settings.json
+__pycache__/
+*.pyc
+.DS_Store

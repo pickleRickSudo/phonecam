@@ -1,0 +1,295 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone Cam</title>
+<link rel="icon" href="/icon.png">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-title" content="Phone Cam">
+<style>
+  :root {
+    --bg: #f4f4f2; --card: #ffffff; --text: #1b1b1a; --muted: #6d6d68; --line: #e2e2dd;
+    --chip: #eeeeea; --accent: #2f6fed; --accent-text: #fff; --live: #18a058; --err: #d23b3b; --warn: #c98a12;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414; --card: #1e1e1d; --text: #eeeeea; --muted: #9a9a94; --line: #2e2e2c;
+      --chip: #2a2a28; --accent: #5b8cff; --accent-text: #fff; --live: #2fc074; --err: #ff6363; --warn: #e5a93a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  main { max-width: 440px; margin: 0 auto; padding: 20px 16px 28px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
+    background: var(--chip); font-size: 12px; font-weight: 600; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill.live { color: var(--live); } .pill.live .dot { background: var(--live); animation: pulse 1.6s infinite; }
+  .pill.starting { color: var(--warn); } .pill.starting .dot { background: var(--warn); }
+  .pill.error { color: var(--err); } .pill.error .dot { background: var(--err); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  /* The preview box takes the stream's shape, so the grid lines sit on the picture's thirds. */
+  .pwrap { --arn: 1.7778; position: relative; width: min(100%, calc(62vh * var(--arn))); aspect-ratio: var(--arn);
+    margin: 0 auto; }
+  .preview { width: 100%; height: 100%; border-radius: 10px; background: #000; overflow: hidden; position: relative;
+    display: grid; place-items: center; color: #8a8a85; font-size: 13px; }
+  .grid { position: absolute; inset: 0; pointer-events: none; display: none; border-radius: 10px; overflow: hidden; }
+  .pwrap.showgrid .grid { display: block; }
+  .grid i { position: absolute; background: rgba(255,255,255,.7); box-shadow: 0 0 1px rgba(0,0,0,.8); }
+  .grid .v1, .grid .v2 { top: 0; bottom: 0; width: 1px; }
+  .grid .h1, .grid .h2 { left: 0; right: 0; height: 1px; }
+  .grid .v1 { left: 33.333%; } .grid .v2 { left: 66.667%; }
+  .grid .h1 { top: 33.333%; } .grid .h2 { top: 66.667%; }
+  .metar { display: inline-flex; align-items: center; gap: 12px; }
+  .switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--text); font-weight: 600; }
+  .switch input { display: none; }
+  .switch .track { width: 28px; height: 16px; border-radius: 99px; background: var(--line); position: relative; transition: background .15s; }
+  .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { transform: translateX(12px); }
+  .preview img { width: 100%; height: 100%; object-fit: contain; position: absolute; inset: 0; }
+  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 8px; }
+  label.h { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+  .row + .row { margin-top: 12px; }
+  .seg { display: flex; background: var(--chip); border-radius: 9px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--text); padding: 7px 4px; border-radius: 7px;
+    font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button.on { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.15); font-weight: 600; }
+  .seg button:disabled { opacity: .5; cursor: default; }
+  .go { width: 100%; border: 0; border-radius: 11px; padding: 12px; font: inherit; font-size: 15px; font-weight: 600;
+    background: var(--accent); color: var(--accent-text); cursor: pointer; }
+  .go.stop { background: var(--err); }
+  .go:disabled { opacity: .55; cursor: default; }
+  .url { display: flex; gap: 8px; }
+  .url input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    border-radius: 9px; padding: 8px 10px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .url button, .quit { border: 1px solid var(--line); background: var(--chip); color: var(--text); border-radius: 9px;
+    padding: 8px 12px; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+  .err { color: var(--err); font-size: 12px; margin-top: 8px; display: none; }
+  .delay { display: flex; justify-content: space-between; align-items: center; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--line); }
+  .dval { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; }
+  #flash { position: fixed; inset: 0; background: #000; z-index: 10; display: none; color: #777;
+    font-size: 15px; text-align: center; align-content: end; padding-bottom: 28px; }
+  footer { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Phone Cam</h1>
+    <span class="pill" id="pill"><span class="dot"></span><span id="pillText">Off</span></span>
+  </header>
+
+  <div class="card">
+    <div class="pwrap" id="pwrap">
+      <div class="preview" id="preview"><span id="previewText">Camera is off</span></div>
+      <div class="grid" aria-hidden="true"><i class="v1"></i><i class="v2"></i><i class="h1"></i><i class="h2"></i></div>
+    </div>
+    <div class="meta"><span id="device">Looking for phone…</span>
+      <span class="metar"><span id="fps"></span>
+        <label class="switch"><input type="checkbox" id="gridToggle"><span class="track"></span>Grid</label></span></div>
+    <div class="err" id="err"></div>
+    <div class="delay">
+      <div><label class="h" style="margin:0">Camera delay</label><div class="dval" id="dval">Not measured</div></div>
+      <button class="quit" id="measure">Measure delay</button>
+    </div>
+    <p class="hint" id="dhint">Point the phone camera at this screen, then press Measure. The screen will flash white 5 times.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <label class="h">Camera</label>
+      <div class="seg" data-key="camera">
+        <button data-v="back">Back</button><button data-v="back2">Back 2</button>
+        <button data-v="front">Front</button><button data-v="front2">Front 2</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="h">Quality</label>
+      <div class="seg" data-key="quality">
+        <button data-v="720p">720p</button><button data-v="1080p">1080p</button><button data-v="4k">4K</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="h">Frame rate</label>
+      <div class="seg" data-key="fps"><button data-v="24">24 fps</button><button data-v="30">30 fps</button></div>
+    </div>
+    <div class="row">
+      <label class="h">Rotate</label>
+      <div class="seg" data-key="rotate">
+        <button data-v="0">0°</button><button data-v="90">90°</button><button data-v="180">180°</button><button data-v="270">270°</button>
+      </div>
+    </div>
+    <div class="row"><button class="go" id="go">Start camera</button></div>
+  </div>
+
+  <div class="card">
+    <label class="h">OBS link</label>
+    <div class="url"><input id="url" readonly><button id="copy">Copy</button></div>
+    <p class="hint" id="obsHint">In OBS: Sources → + → Browser → paste this link. Set Width 1920 and Height 1080.
+      The link stays the same, so you only add it once.</p>
+  </div>
+
+  <footer><span>Changing a setting while live restarts the camera.</span></footer>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  let settings = {}, state = 'off';
+  const SIZES = { '720p': [1280, 720], '1080p': [1920, 1080], '4k': [3840, 2160] };
+
+  function paintSegs() {
+    document.querySelectorAll('.seg').forEach(seg => {
+      const key = seg.dataset.key;
+      seg.querySelectorAll('button').forEach(b => b.classList.toggle('on', String(settings[key]) === b.dataset.v));
+    });
+    let [w, h] = SIZES[settings.quality] || SIZES['1080p'];
+    if (settings.rotate == 90 || settings.rotate == 270) [w, h] = [h, w];
+    $('pwrap').style.setProperty('--arn', (w / h).toFixed(4));
+    $('obsHint').textContent = `In OBS: Sources → + → Browser → paste this link. Set Width ${w} and Height ${h}. ` +
+      'The link stays the same, so you only add it once.';
+  }
+
+  function paintState(s) {
+    const prev = state;
+    state = s.state;
+    const labels = { off: 'Off', starting: 'Starting…', live: 'Live', error: 'Error' };
+    $('pill').className = 'pill ' + state;
+    $('pillText').textContent = labels[state] || state;
+    const go = $('go');
+    go.disabled = state === 'starting';
+    go.classList.toggle('stop', state === 'live' || state === 'starting');
+    go.textContent = state === 'live' ? 'Stop camera' : state === 'starting' ? 'Starting…' : 'Start camera';
+    $('fps').textContent = state === 'live' ? `${s.fps} fps` : '';
+    $('err').style.display = state === 'error' ? 'block' : 'none';
+    $('err').textContent = s.error || '';
+    const d = s.device || {};
+    $('device').textContent = d.state === 'device' ? `Connected: ${d.model || 'phone'}`
+      : d.state === 'unauthorized' ? 'Phone connected: tap Allow on the phone'
+      : d.state === 'none' ? 'No phone found: plug in the USB cable' : `Phone: ${d.state}`;
+    const pv = $('preview');
+    if (state === 'live') {
+      if (!pv.querySelector('img')) {
+        pv.innerHTML = '';
+        const img = new Image(); img.src = '/stream?t=' + Date.now(); pv.appendChild(img);
+      }
+    } else {
+      const msg = state === 'starting' ? 'Starting camera…' : state === 'error' ? 'Camera stopped' : 'Camera is off';
+      if (pv.textContent !== msg) pv.innerHTML = `<span>${msg}</span>`;
+    }
+  }
+
+  async function api(path, body) {
+    const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return r.json();
+  }
+
+  async function refresh() {
+    try {
+      const s = await api('/api/status');
+      if (!Object.keys(settings).length) settings = s.settings;
+      $('url').value = s.view_url;
+      paintSegs(); paintState(s);
+    } catch (e) {
+      $('pill').className = 'pill error'; $('pillText').textContent = 'Server stopped';
+    }
+  }
+
+  document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', async (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const key = seg.dataset.key;
+    settings[key] = key === 'fps' || key === 'rotate' ? Number(b.dataset.v) : b.dataset.v;
+    paintSegs();
+    if (state === 'live' || state === 'starting') paintState(await api('/api/start', settings));
+  }));
+
+  $('go').onclick = async () => {
+    paintState(await api(state === 'live' ? '/api/stop' : '/api/start', state === 'live' ? {} : settings));
+  };
+
+  $('copy').onclick = async () => {
+    const u = $('url');
+    try { await navigator.clipboard.writeText(u.value); } catch { u.select(); document.execCommand('copy'); }
+    $('copy').textContent = 'Copied'; setTimeout(() => $('copy').textContent = 'Copy', 1500);
+  };
+
+
+  // ---- Delay measurement: flash the screen white, time when the camera sees it.
+  const flash = document.createElement('div'); flash.id = 'flash'; document.body.appendChild(flash);
+  const probe = document.createElement('canvas'); probe.width = 16; probe.height = 9;
+  const pctx = probe.getContext('2d', { willReadFrequently: true });
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function brightness() {
+    const r = await fetch('/snapshot.jpg?t=' + performance.now(), { cache: 'no-store' });
+    if (!r.ok) throw new Error('no frame');
+    const bmp = await createImageBitmap(await r.blob());
+    pctx.drawImage(bmp, 0, 0, 16, 9); bmp.close();
+    const d = pctx.getImageData(0, 0, 16, 9).data;
+    let sum = 0; for (let i = 0; i < d.length; i += 4) sum += d[i] * .299 + d[i + 1] * .587 + d[i + 2] * .114;
+    return sum / (d.length / 4);
+  }
+  async function settle(ms) { const end = performance.now() + ms; let v = 0; while (performance.now() < end) v = await brightness(); return v; }
+
+  async function measure() {
+    if (state !== 'live') { $('dhint').textContent = 'Start the camera first.'; return; }
+    const btn = $('measure'); btn.disabled = true;
+    try { await document.documentElement.requestFullscreen(); } catch {}
+    flash.style.display = 'grid'; flash.style.background = '#000';
+    const results = [];
+    try {
+      for (let i = 0; i < 5; i++) {
+        flash.style.background = '#000'; flash.textContent = `Keep the phone pointed at the screen… (${i + 1}/5)`;
+        const dark = await settle(1300);
+        flash.textContent = ''; flash.style.background = '#fff';
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const t0 = performance.now(); let seen = 0;
+        while (performance.now() - t0 < 4000) {
+          const b = await brightness();
+          if (b - dark > 20) { seen = performance.now() - t0; break; }
+        }
+        if (seen) results.push(seen);
+      }
+    } catch (e) {}
+    flash.style.display = 'none';
+    try { if (document.fullscreenElement) await document.exitFullscreen(); } catch {}
+    btn.disabled = false;
+    if (results.length < 3) {
+      $('dhint').textContent = "Couldn't see the flashes. Point the phone straight at this screen (fill most of the picture) and try again.";
+      return;
+    }
+    results.sort((a, b) => a - b);
+    const ms = Math.round(results[Math.floor(results.length / 2)] / 10) * 10;
+    show(ms);
+    try { localStorage.setItem('phonecamDelay', JSON.stringify({ ms, q: settings.quality, fps: settings.fps })); } catch {}
+  }
+  function show(ms, q) {
+    $('dval').textContent = `≈ ${ms} ms` + (q ? ` (${q})` : '');
+    const parts = []; for (let left = ms; left > 0; left -= 500) parts.push(Math.min(500, left));
+    const filters = parts.length > 1 ? `${parts.length} Render Delay filters (${parts.join(' ms + ')} ms)` : `a Render Delay of ${ms} ms`;
+    $('dhint').textContent = `In OBS, add ${filters} to your game capture, and set the game audio Sync Offset to ${ms} ms. ` +
+      'Measure again if you change quality.';
+  }
+  $('measure').onclick = measure;
+  try { const d = JSON.parse(localStorage.getItem('phonecamDelay')); if (d) show(d.ms, d.q); } catch {}
+
+  // Grid: only drawn on this control page, never on the OBS /view page.
+  const gridToggle = $('gridToggle');
+  try { gridToggle.checked = localStorage.getItem('phonecamGrid') === '1'; } catch {}
+  const paintGrid = () => $('pwrap').classList.toggle('showgrid', gridToggle.checked);
+  gridToggle.onchange = () => { paintGrid(); try { localStorage.setItem('phonecamGrid', gridToggle.checked ? '1' : '0'); } catch {} };
+  paintGrid();
+
+  refresh();
+  setInterval(refresh, 1500);
+</script>
+</body>
+</html>
