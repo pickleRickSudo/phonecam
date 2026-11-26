@@ -102,6 +102,10 @@
       <button class="quit" id="measure">Measure delay</button>
     </div>
     <p class="hint" id="dhint">Point the phone camera at this screen, then press Measure. The screen will flash white 5 times.</p>
+    <div class="delay">
+      <div><label class="h" style="margin:0">Red dot on Dock icon while live</label><div class="hint" style="margin:2px 0 0" id="bstate">Checking…</div></div>
+      <button class="quit" id="benable" style="display:none">Turn on</button>
+    </div>
   </div>
 
   <div class="card">
@@ -172,9 +176,29 @@
   // macOS only shows web-app badges once notifications are allowed; ask on first Start (needs a click).
   function askBadgePermission() {
     try {
-      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+      if ('Notification' in window && Notification.permission === 'default')
+        Promise.resolve(Notification.requestPermission()).then(paintBadgeState, paintBadgeState);
     } catch {}
   }
+  function paintBadgeState() {
+    const st = $('bstate'), btn = $('benable');
+    const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    btn.style.display = 'none';
+    if (!navigator.setAppBadge || !('Notification' in window)) {
+      st.textContent = standalone ? 'Not supported here. The window title shows 🔴 while live.'
+        : 'Open Phone Cam from the Dock (not a Safari tab) to use this.';
+    } else if (!standalone) {
+      st.textContent = 'Open Phone Cam from the Dock (not a Safari tab) to use this.';
+    } else if (Notification.permission === 'granted') {
+      st.textContent = 'On. Check System Settings → Notifications → Phone Cam → "Badge application icon" is on.';
+    } else if (Notification.permission === 'denied') {
+      st.textContent = 'Blocked. Turn it on in System Settings → Notifications → Phone Cam (allow notifications + badges), then reopen Phone Cam.';
+    } else {
+      st.textContent = 'Off. Press Turn on and click Allow.';
+      btn.style.display = '';
+    }
+  }
+  $('benable').onclick = askBadgePermission;
 
   function paintState(s) {
     const prev = state;
@@ -307,6 +331,7 @@
   const paintGrid = () => $('pwrap').classList.toggle('showgrid', gridToggle.checked);
   gridToggle.onchange = () => { paintGrid(); try { localStorage.setItem('phonecamGrid', gridToggle.checked ? '1' : '0'); } catch {} };
   paintGrid();
+  paintBadgeState();
 
   refresh();
   setInterval(refresh, 1500);

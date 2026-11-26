@@ -12,6 +12,7 @@ A small local web app lets you pick the camera, quality (720p / 1080p / 4K), fra
 - Live preview with an optional 3×3 grid. The grid is shown only in the control app, never in OBS.
 - **Measure delay**: flashes the screen white and times how long the camera takes to see it, then tells you the OBS Render Delay and audio Sync Offset to use
 - Runs as a login service, and can be added to the Dock as a Safari web app
+- Optional menu bar icon: a small **p** that turns into a **red dot** while the camera is live, with Start/Stop, Open and Copy OBS link
 
 ## How it works
 
@@ -37,6 +38,8 @@ cd ~/tools/phonecam
 ```
 
 Then open `http://127.0.0.1:8737/` in Safari and choose **File → Add to Dock** to get the app icon.
+
+Optional menu bar icon (needs Xcode Command Line Tools for `swiftc`): `./tools/build-menubar.sh`. It builds `~/Applications/Phone Cam Menu.app` and starts it at login. To remove it: `launchctl bootout gui/$(id -u)/com.phonecam.menubar` and delete the app and `~/Library/LaunchAgents/com.phonecam.menubar.plist`.
 
 Run it without the login service: `/usr/bin/python3 server.py`. Remove the service: `./uninstall.sh`.
 
@@ -94,6 +97,7 @@ Run it without the login service: `/usr/bin/python3 server.py`. Remove the servi
 | `install.sh` / `uninstall.sh` | Login service (LaunchAgent) |
 | `start.sh` | Starts the server if needed and opens the UI |
 | `tools/make-icon.swift` | Regenerates `icon.png` |
+| `tools/menubar.swift`, `tools/build-menubar.sh` | Menu bar "p" icon that turns red while live |
 
 ## License
 
